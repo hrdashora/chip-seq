@@ -1,11 +1,12 @@
-# Data package
-library(EpigeneticsCSAMA)
-dataDirectory <- system.file("bedfiles", package = "EpigeneticsCSAMA")
+# Data
+## Data package
+dataDirectory <- file.path("EpigeneticsCSAMA2015","inst","bedfiles")
 
 # Reading the filtered ChIP-seq reads
 library(GenomicRanges)
 library(rtracklayer)
 library(IRanges)
+
 
 input <- import.bed(file.path(dataDirectory, 'ES_input_filtered_ucsc_chr6.bed'))
 rep1 <- import.bed(file.path(dataDirectory, 'H3K27ac_rep1_filtered_ucsc_chr6.bed'))
@@ -28,8 +29,7 @@ rep2 <- prepareChIPseq(rep2)
 
 # Binning the ChIP-seq and control
 ## Generation of bins
-path <- system.file("data", package = "EpigeneticsCSAMA")
-load(file.path(path, 'si.RData'))
+load("~/R/chip-seq/EpigeneticsCSAMA2015/data/si.RData")
 binsize = 200
 bins = GenomicRanges::tileGenome(si['chr6'], tilewidth=binsize,
                   cut.last.tile.in.chrom=TRUE)
@@ -43,6 +43,7 @@ BinChIPseq = function( reads, bins ){
 input.200bins <- BinChIPseq( input, bins )
 rep1.200bins <- BinChIPseq( rep1, bins )
 rep2.200bins <- BinChIPseq( rep2, bins )
+
 ## Exporting binned data
 export(input.200bins, 
        con='input_chr6.bedGraph',
@@ -56,12 +57,13 @@ export(rep2.200bins,
 
 # Visualisation of ChIP-seq data with Gviz
 library(Gviz)
-load(file.path(path, 'bm.RData'))
+load("~/R/chip-seq/EpigeneticsCSAMA2015/data/bm.RData")
 AT = GenomeAxisTrack( )
 plotTracks(c( bm, AT),
            from=122530000, to=122900000,
            transcriptAnnotation="symbol", window="auto", 
            cex.title=1, fontsize=10 )
+
 input.track = DataTrack(input.200bins, 
                         strand="*", genome="mm9", col.histogram='gray',
                         fill.histogram='black', name="Input", col.axis="black",
@@ -76,12 +78,14 @@ rep2.track = DataTrack(rep2.200bins,
                        strand="*", genome="mm9", col.histogram='steelblue',
                        fill.histogram='black', name="Rep. 2", col.axis='steelblue',
                        cex.axis=0.4, ylim=c(0,150))
+
 plotTracks(c(input.track, rep1.track, rep2.track, bm, AT),
            from=122530000, to=122900000,
            transcriptAnnotation="symbol", window="auto", 
            type="histogram", cex.title=0.7, fontsize=10 )
 
 # ChIP-seq peaks
+## Peaks - basic analysis in R
 peaks.rep1 = import.bed(file.path(dataDirectory,'Rep1_peaks_ucsc_chr6.bed'))
 peaks.rep2 = import.bed(file.path(dataDirectory,'Rep2_peaks_ucsc_chr6.bed'))
 peaks1.track = AnnotationTrack(peaks.rep1, 
@@ -92,15 +96,18 @@ peaks2.track = AnnotationTrack(peaks.rep2,
                                genome="mm9", name='Peaks Rep. 2',
                                chromosome='chr6',
                                shape='box',fill='blue3',size=2)
+
 plotTracks(c(input.track, rep1.track, peaks1.track,
              rep2.track, peaks2.track, bm, AT),
            from=122630000, to=122700000,
            transcriptAnnotation="symbol", window="auto", 
            type="histogram", cex.title=0.7, fontsize=10 )
+
 ## Venn diagrams
 ovlp = findOverlaps( peaks.rep1, peaks.rep2 )
 ov = min( length(unique( queryHits(ovlp) )), length(unique( subjectHits(ovlp) ) ) )
 library(VennDiagram)
+
 draw.pairwise.venn( 
   area1=length(peaks.rep1),
   area2=length(peaks.rep2), 
@@ -108,19 +115,23 @@ draw.pairwise.venn(
   category=c("rep1", "rep2"), 
   fill=c("steelblue", "blue3"), 
   cat.cex=0.7)
+
 enriched.regions = Reduce(subsetByOverlaps, list(peaks.rep1, peaks.rep2))
 enr.reg.track = AnnotationTrack(enriched.regions,
                                 genome="mm9", name='Enriched regions',
                                 chromosome='chr6',
                                 shape='box',fill='green3',size=2)
+
 plotTracks(c(input.track, rep1.track, peaks1.track,
              rep2.track, peaks2.track, enr.reg.track, 
              bm, AT),
            from=122630000, to=122700000,
            transcriptAnnotation="symbol", window="auto", 
            type="histogram", cex.title=0.5, fontsize=10 )
+
 ## Isolation of promoters overlapping H3K27ac peaks
-load(file.path(path, 'egs.RData'))
+### Identification of promoters
+load("~/R/chip-seq/EpigeneticsCSAMA2015/data/egs.RData")
 egs$TSS = ifelse( egs$strand == "1", egs$start_position, egs$end_position )
 promoter_regions = 
   GRanges(seqnames = Rle( paste0('chr', egs$chromosome_name) ),
@@ -144,7 +155,7 @@ promotor_fraction_of_chromosome_6 = promotor_total_length / seqlengths(si)["chr6
 binom.test( length( unique( subjectHits( ovlp2b ) ) ), length( enriched.regions ), promotor_fraction_of_chromosome_6 )
 pos.TSS = egs[ unique( queryHits( findOverlaps( promoter_regions, enriched.regions ) ) ),]
 
-# Analysis of the distribution of H3K27ac around a subset of gene promoters
+## Analysis of the distribution of H3K27ac around a subset of gene promoters
 tiles = sapply( 1:nrow(pos.TSS), function(i)
   if( pos.TSS$strand[i] == "1" )
     pos.TSS$TSS[i] + seq( -1000, 900, length.out=20 )
